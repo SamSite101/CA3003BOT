@@ -8,6 +8,7 @@ class UserDatabase:
             db_path (str): Der Pfad zur SQLite-Datenbankdatei.
         """
         self.db_path = db_path
+        self.conn = None # Initialisiert self.conn hier, um die PyCharm-Warnung zu beheben
 
     async def connect(self):
         """Stellt eine asynchrone Verbindung zur Datenbank her."""
