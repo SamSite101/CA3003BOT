@@ -15,11 +15,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Token aus Umgebungsvariablen laden.
-# Stellen Sie sicher, dass diese Variablen in Ihrer .env-Datei definiert sind, z.B.:
+# Stellen Sie sicher, dass diese Variablen in Ihrer .env-Datei definiert sind.
+# Die .env-Datei sollte NICHT auf GitHub hochgeladen werden (sie ist in .gitignore).
+# Beispiel für Ihre .env-Datei:
 # TELEGRAM_BOT_TOKEN="IHR_BOT_TOKEN_HIER"
 # ANTHROPIC_API_KEY="IHR_ANTHROPIC_API_KEY_HIER"
-TOKEN = os.getenv("7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE")
-ANTHROPIC_API_KEY = os.getenv("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")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 
 class CryptoScalpingBot:
@@ -106,28 +108,6 @@ class CryptoScalpingBot:
                     )
             else:
                 await query.edit_message_text("Ungültiger Abonnementtyp ausgewählt.")
-        # PyCharm-Warnung "Parameter 'context' value is not used":
-        # Siehe Kommentar in der 'start'-Methode.
-
-    async def check_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Überprüft den Abonnementstatus des Benutzers."""
-        user_id = update.effective_user.id
-        user_data = await self.db.get_user(user_id)
-
-        if user_data and user_data.get('subscription_end_date'):
-            end_date_str = user_data['subscription_end_date']
-            try:
-                end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                if end_date >= datetime.date.today():
-                    await update.message.reply_text(
-                        f"Ihr aktuelles Abonnement ({user_data.get('subscription_type', 'N/A')}) ist gültig bis: {end_date.strftime('%d.%m.%Y')}"
-                    )
-                else:
-                    await update.message.reply_text("Ihr Abonnement ist abgelaufen. Bitte erneuern Sie es.")
-            except ValueError:
-                await update.message.reply_text("Fehler beim Abrufen Ihres Abonnementdatums.")
-        else:
-            await update.message.reply_text("Sie haben derzeit kein aktives Abonnement.")
         # PyCharm-Warnung "Parameter 'context' value is not used":
         # Siehe Kommentar in der 'start'-Methode.
 
