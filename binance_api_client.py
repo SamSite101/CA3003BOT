@@ -68,8 +68,8 @@ async def main():
     from dotenv import load_dotenv
     load_dotenv()
 
-    binance_api_key = os.getenv("4uxrnFjv79NFB4yIj30DdPxud61RCnX8dd1GVrnSWzm6GNRMUgfFmrItRfMwuPzu")
-    binance_api_secret = os.getenv("9w05VUpmotvvernZOfRdVN1GmwCkc5HmDXtLHmIAwkJ1xJC09i2wWRbBFW7W25lQ")
+    binance_api_key = os.getenv("BINANCE_API_KEY")
+    binance_api_secret = os.getenv("BINANCE_API_SECRET")
 
     if not binance_api_key or not binance_api_secret:
         print("Binance API Key oder Secret nicht gefunden. Bitte setzen Sie sie in Ihrer .env-Datei.")
