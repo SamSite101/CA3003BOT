@@ -1,4 +1,5 @@
 # Importe für den Telegram Bot
+import datetime  # Notwendig für Datumsoperationen
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -8,23 +9,19 @@ from user_database import UserDatabase
 from payment_handler import PaymentHandler
 
 import asyncio
-import os
+import os  # Hinzugefügt: Notwendig für os.getenv
 from dotenv import load_dotenv
 
 # Laden der Umgebungsvariablen aus der .env-Datei
 load_dotenv()
 
-# TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") # Ihr Telegram Bot Token
-# ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") # Ihr Anthropic API Key
-
-# Dummy-Werte für die Token, falls .env nicht geladen wird oder leer ist
-# ERSETZEN SIE DIES MIT IHREN ECHTEN TOKENS IN DER .ENV-DATEI
-TOKEN = "7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE"  # Beispiel: "123456:ABC-DEF1234ghIkl-7987654321"
-ANTHROPIC_API_KEY = "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"  # Beispiel: "sk-ant-api03-..."
-
-# Datenbank-Instanz
-db = UserDatabase()
-payment_handler = PaymentHandler(db)
+# Laden der Token aus den Umgebungsvariablen.
+# Stellen Sie sicher, dass diese Variablen in Ihrer .env-Datei definiert sind, z.B.:
+# TELEGRAM_BOT_TOKEN="7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE"
+# ANTHROPIC_API_KEY="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"
+TOKEN = os.getenv("7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE")
+ANTHROPIC_API_KEY = os.getenv(
+    "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")
 
 
 class CryptoScalpingBot:
@@ -64,6 +61,7 @@ class CryptoScalpingBot:
 
     async def subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Zeigt Abonnementoptionen an."""
+        # 'subscribe' kann nicht statisch sein, da es 'update.message.reply_text' verwendet.
         keyboard = [
             [InlineKeyboardButton("Basic (30 Tage - $10)", callback_data="subscribe_basic")],
             [InlineKeyboardButton("Premium (90 Tage - $25)", callback_data="subscribe_premium")],
@@ -100,7 +98,7 @@ class CryptoScalpingBot:
     async def check_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Überprüft den Abonnementstatus des Benutzers."""
         user_id = update.effective_user.id
-        user_data = await self.db.get_user(user_id)  # Korrigierter Methodenname
+        user_data = await self.db.get_user(user_id)
 
         if user_data and user_data.get('subscription_end_date'):
             end_date_str = user_data['subscription_end_date']
