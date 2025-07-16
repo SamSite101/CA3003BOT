@@ -1,0 +1,86 @@
+# Ignoriert alle Dateien und Ordner, die von Python generiert werden
+# oder projektspezifische temporäre/sensible Daten enthalten.
+
+# ===================================================================
+# Python-spezifische Dateien und Ordner
+# ===================================================================
+# Kompilierte Python-Dateien
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# Virtuelle Umgebungen
+# Standard-PyCharm/Python venv-Ordner (ohne Punkt)
+venv/
+# Alternativer venv-Ordner (oft von VS Code oder anderen Tools verwendet)
+.venv/
+# Andere gängige Namen für virtuelle Umgebungen
+env/
+.env/
+
+# Sensible Umgebungsvariablen-Datei (NIEMALS hochladen!)
+.env
+.flaskenv
+
+# Build-Artefakte
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test- und Coverage-Dateien
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# MyPy Cache (Type Checker)
+.mypy_cache/
+
+# ===================================================================
+# IDE-spezifische Dateien (PyCharm, VS Code, etc.)
+# ===================================================================
+# PyCharm-Projektdateien
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Visual Studio Code-Dateien
+.vscode/
+
+# ===================================================================
+# Datenbankdateien
+# ===================================================================
+# SQLite-Datenbankdateien (Ihre Benutzerdatenbank)
+*.sqlite
+*.db
+*.db3
+
+# ===================================================================
+# Betriebssystem-spezifische Dateien
+# ===================================================================
+# macOS-spezifische Dateien
+.DS_Store
+
+# Windows-spezifische Dateien
+Thumbs.db
+
+# ===================================================================
+# Andere temporäre oder generierte Dateien, die nicht versioniert werden sollen
+# ===================================================================
+# Log-Dateien
+*.log
+logs/
+
+# Uploads oder temporäre Daten (falls Ihr Bot solche generiert)
+uploads/
+tmp/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Pip-Cache
+pip-cache/
