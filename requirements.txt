@@ -1,0 +1,4 @@
+python-telegram-bot==21.2 # Oder die spezifische Version, die Sie verwenden
+anthropic==0.28.0 # Oder die spezifische Version, die Sie verwenden
+aiosqlite==0.20.0 # Oder die spezifische Version, die Sie verwenden
+python-dotenv==1.0.0 # Oder die spezifische Version, die Sie verwenden
