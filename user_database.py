@@ -1,56 +1,82 @@
 import aiosqlite
-from datetime import datetime
 
 class UserDatabase:
-    """Verwaltet alle Datenbankoperationen im Zusammenhang mit Nutzern."""
-    
-    def __init__(self, db_path='bot_users.db'):
-        """Initialisiert die Verbindung zur SQLite-Datenbank."""
+    def __init__(self, db_path: str = 'user_data.db'):
+        """
+        Initialisiert die UserDatabase.
+        Args:
+            db_path (str): Der Pfad zur SQLite-Datenbankdatei.
+        """
         self.db_path = db_path
 
-    async def get_user_data(self, user_id: int) -> tuple:
-        """
-        Holt Benutzerdaten aus der Datenbank.
-        
-        :param user_id: ID des Nutzers
-        :return: Daten des Nutzers
-        """
-        async with aiosqlite.connect(self.db_path) as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
-                user = await cursor.fetchone()
-                if not user:
-                    await self.create_user(user_id)
-                    await cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
-                    user = await cursor.fetchone()
-                return user
+    async def connect(self):
+        """Stellt eine asynchrone Verbindung zur Datenbank her."""
+        self.conn = await aiosqlite.connect(self.db_path)
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                subscription_type TEXT,
+                subscription_start_date TEXT,
+                subscription_end_date TEXT
+            )
+        """)
+        await self.conn.commit()
 
-    async def create_user(self, user_id: int):
-        """
-        Erstellt einen neuen Nutzer in der Datenbank.
-        
-        :param user_id: ID des neuen Nutzers
-        """
-        async with aiosqlite.connect(self.db_path) as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''INSERT INTO users (user_id, subscription_type, subscription_expires, daily_requests, last_request_date) 
-                                        VALUES (?, 'free', NULL, 0, DATE('now'))''', (user_id,))
-                await conn.commit()
+    async def close(self):
+        """Schließt die Datenbankverbindung."""
+        if self.conn:
+            await self.conn.close()
 
-    async def update_user_requests(self, user_id: int):
+    async def get_user(self, user_id: int) -> dict | None:
         """
-        Aktualisiert die Anfrage-Zählung für einen Nutzer.
-        
-        :param user_id: ID des Nutzers
+        Ruft Benutzerdaten anhand der user_id ab.
+        Args:
+            user_id (int): Die ID des Benutzers.
+        Returns:
+            dict | None: Ein Wörterbuch mit Benutzerdaten oder None, wenn der Benutzer nicht gefunden wird.
         """
-        today = datetime.now().date()
-        async with aiosqlite.connect(self.db_path) as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''UPDATE users 
-                                        SET daily_requests = CASE 
-                                            WHEN last_request_date = ? THEN daily_requests + 1
-                                            ELSE 1
-                                        END,
-                                        last_request_date = ?
-                                        WHERE user_id = ?''', (today, today, user_id))
-                await conn.commit()
+        async with self.conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                # Annahme der Spaltenreihenfolge
+                return {
+                    "user_id": row[0],
+                    "username": row[1],
+                    "subscription_type": row[2],
+                    "subscription_start_date": row[3],
+                    "subscription_end_date": row[4]
+                }
+            return None
+
+    async def add_user(self, user_id: int, username: str):
+        """
+        Fügt einen neuen Benutzer zur Datenbank hinzu.
+        Args:
+            user_id (int): Die ID des Benutzers.
+            username (str): Der Benutzername.
+        """
+        await self.conn.execute(
+            "INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)",
+            (user_id, username)
+        )
+        await self.conn.commit()
+
+    async def update_user_subscription(self, user_id: int, subscription_type: str, subscription_end_date: str):
+        """
+        Aktualisiert das Abonnement eines Benutzers in der Datenbank.
+        Args:
+            user_id (int): Die ID des Benutzers.
+            subscription_type (str): Der Typ des Abonnements.
+            subscription_end_date (str): Das Enddatum des Abonnements im Format 'YYYY-MM-DD'.
+        """
+        await self.conn.execute(
+            """
+            UPDATE users
+            SET subscription_type = ?, subscription_end_date = ?
+            WHERE user_id = ?
+            """,
+            (subscription_type, subscription_end_date, user_id)
+        )
+        await self.conn.commit()
+
