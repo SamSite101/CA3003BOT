@@ -1,75 +1,152 @@
-import asyncio
+# Importe für den Telegram Bot
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from telegram.constants import ParseMode
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
+# Import für die UserDatabase
 from user_database import UserDatabase
+# Import für den PaymentHandler
 from payment_handler import PaymentHandler
-from claude_api import ClaudeAPI
+
+import asyncio
+import os
+from dotenv import load_dotenv
+
+# Laden der Umgebungsvariablen aus der .env-Datei
+load_dotenv()
+
+# TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") # Ihr Telegram Bot Token
+# ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") # Ihr Anthropic API Key
+
+# Dummy-Werte für die Token, falls .env nicht geladen wird oder leer ist
+# ERSETZEN SIE DIES MIT IHREN ECHTEN TOKENS IN DER .ENV-DATEI
+TOKEN = "7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE"  # Beispiel: "123456:ABC-DEF1234ghIkl-7987654321"
+ANTHROPIC_API_KEY = "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"  # Beispiel: "sk-ant-api03-..."
+
+# Datenbank-Instanz
+db = UserDatabase()
+payment_handler = PaymentHandler(db)
+
 
 class CryptoScalpingBot:
-    """Hauptlogik des Crypto Scalping Bots."""
-    
-    def __init__(self, telegram_token: str, anthropic_api_key: str, payment_token: str):
-        """Initialisiert den Bot und seine Komponenten."""
-        self.db = UserDatabase()
-        self.payment_handler = PaymentHandler(payment_token)
-        self.claude_api = ClaudeAPI(anthropic_api_key)
-        self.telegram_token = telegram_token
-
-    async def start(self, update: Update, context) -> None:
-        """Begrüßt den Nutzer und zeigt die verfügbaren Befehle."""
-        user_id = update.effective_user.id
-        await self.db.get_user_data(user_id)
-        
-        welcome_text = """
-🚀 **Willkommen beim Crypto Scalping Bot!**
-
-Ich bin dein AI-Assistent für Crypto-Trading mit Claude Haiku 3.5 Power!
-
-**Verfügbare Befehle:**
-• `/analyze [COIN]` - Marktanalyse
-• `/scalp [COIN]` - Scalping-Signale
-• `/pricing` - Abonnement-Optionen
-• `/status` - Dein Account-Status
-• `/help` - Hilfe
+    def __init__(self, token: str, anthropic_api_key: str, db_instance: UserDatabase,
+                 payment_handler_instance: PaymentHandler):
         """
-        
-        await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
-
-    async def analyze(self, update: Update, context) -> None:
-        """Analysiert den Markt und gibt eine Antwort zurück."""
-        user_id = update.effective_user.id
-        user_data = await self.db.get_user_data(user_id)
-        
-        can_request, error_msg = self.can_make_request(user_data)
-        if not can_request:
-            await update.message.reply_text(error_msg)
-            return
-        
-        coin = context.args[0].upper() if context.args else None
-        if not coin:
-            await update.message.reply_text("Bitte gib eine Coin an: `/analyze BTC`", parse_mode=ParseMode.MARKDOWN)
-            return
-        
-        loading_msg = await update.message.reply_text(f"🔍 Analysiere {coin}... (powered by Claude Haiku 3.5)")
-        
-        prompt = f"Analysiere die aktuelle Marktlage von {coin}. Gib mir eine präzise Scalping-Einschätzung mit Einstiegspunkten, Stop-Loss und Take-Profit Levels."
-        response = await self.claude_api.query(prompt)
-        
-        await self.db.update_user_requests(user_id)
-        
-        analysis_text = f"""
-📊 **{coin} Scalping-Analyse**
-
-{response}
-
-⚡ *Powered by Claude Haiku 3.5*
+        Initialisiert den CryptoScalpingBot.
+        Args:
+            token (str): Telegram Bot Token.
+            anthropic_api_key (str): Anthropic API Key.
+            db_instance (UserDatabase): Instanz der UserDatabase.
+            payment_handler_instance (PaymentHandler): Instanz des PaymentHandler.
         """
-        
-        await loading_msg.edit_text(analysis_text, parse_mode=ParseMode.MARKDOWN)
+        self.application = Application.builder().token(token).build()
+        self.anthropic_api_key = anthropic_api_key
+        self.db = db_instance
+        self.payment_handler = payment_handler_instance
 
-    def can_make_request(self, user_data) -> tuple:
-        """Überprüft, ob der Nutzer eine Anfrage stellen kann."""
-        if user_data[2] == 'free' and user_data[4] >= 10:
-            return False, "Tägliches Limit erreicht."
-        return True, ""
+        # Befehls-Handler registrieren
+        self.application.add_handler(CommandHandler("start", self.start))
+        self.application.add_handler(CommandHandler("subscribe", self.subscribe))
+        self.application.add_handler(CallbackQueryHandler(self.button_callback))
+        self.application.add_handler(CommandHandler("check_subscription", self.check_subscription))
+
+    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Sendet eine Willkommensnachricht und fügt den Benutzer zur Datenbank hinzu."""
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name
+
+        # Benutzer zur Datenbank hinzufügen
+        await self.db.add_user(user_id, username)
+
+        await update.message.reply_text(
+            f"Hallo {username}! Willkommen beim Crypto Scalping Bot. "
+            "Ich helfe Ihnen, profitable Handelsmöglichkeiten zu finden."
+        )
+
+    async def subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Zeigt Abonnementoptionen an."""
+        keyboard = [
+            [InlineKeyboardButton("Basic (30 Tage - $10)", callback_data="subscribe_basic")],
+            [InlineKeyboardButton("Premium (90 Tage - $25)", callback_data="subscribe_premium")],
+            [InlineKeyboardButton("VIP (365 Tage - $80)", callback_data="subscribe_vip")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Wählen Sie Ihr Abonnement:", reply_markup=reply_markup)
+
+    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Verarbeitet Callback-Queries von Inline-Buttons."""
+        query = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()  # Bestätigt den Empfang des Callbacks
+
+        if query.data.startswith("subscribe_"):
+            subscription_type = query.data.split("_")[1]
+            price = await self.payment_handler.get_subscription_price(subscription_type)
+
+            if price is not None:
+                # Hier würde die tatsächliche Zahlungsabwicklung beginnen
+                # Für die Demo simulieren wir eine erfolgreiche Zahlung
+                payment_successful = await self.payment_handler.handle_payment(user_id, subscription_type)
+                if payment_successful:
+                    await query.edit_message_text(
+                        f"Vielen Dank! Ihr {subscription_type}-Abonnement wurde erfolgreich aktiviert."
+                    )
+                else:
+                    await query.edit_message_text(
+                        f"Die Aktivierung Ihres {subscription_type}-Abonnements ist fehlgeschlagen. Bitte versuchen Sie es erneut."
+                    )
+            else:
+                await query.edit_message_text("Ungültiger Abonnementtyp ausgewählt.")
+
+    async def check_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Überprüft den Abonnementstatus des Benutzers."""
+        user_id = update.effective_user.id
+        user_data = await self.db.get_user(user_id)  # Korrigierter Methodenname
+
+        if user_data and user_data.get('subscription_end_date'):
+            end_date_str = user_data['subscription_end_date']
+            try:
+                end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                if end_date >= datetime.date.today():
+                    await update.message.reply_text(
+                        f"Ihr aktuelles Abonnement ({user_data.get('subscription_type', 'N/A')}) ist gültig bis: {end_date.strftime('%d.%m.%Y')}"
+                    )
+                else:
+                    await update.message.reply_text("Ihr Abonnement ist abgelaufen. Bitte erneuern Sie es.")
+            except ValueError:
+                await update.message.reply_text("Fehler beim Abrufen Ihres Abonnementdatums.")
+        else:
+            await update.message.reply_text("Sie haben derzeit kein aktives Abonnement.")
+
+    @staticmethod
+    async def can_make_request(user_id: int) -> bool:
+        """
+        Überprüft, ob ein Benutzer eine Anfrage stellen darf (z.B. basierend auf dem Abonnementstatus).
+        Diese Methode ist jetzt statisch, da sie keine Instanzattribute verwendet.
+        """
+        # Diese Logik müsste mit der Datenbank interagieren, um den Status zu prüfen.
+        # Für den Moment ist es ein Platzhalter.
+        # Beispiel: await self.db.get_user_subscription_status(user_id)
+        return True  # Platzhalter
+
+    def run(self):
+        """Startet den Bot."""
+        print("Bot wird gestartet...")
+        # Verbindung zur Datenbank herstellen, bevor der Bot gestartet wird
+        asyncio.run(self.db.connect())
+        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Datenbankverbindung schließen, wenn der Bot beendet wird (optional, kann auch im Shutdown-Handler erfolgen)
+        # asyncio.run(self.db.close())
+
+
+if __name__ == "__main__":
+    # Eine Instanz der UserDatabase erstellen
+    db_instance = UserDatabase()
+    # Eine Instanz des PaymentHandler erstellen und die db_instance übergeben
+    payment_handler_instance = PaymentHandler(db_instance)
+
+    # Bot initialisieren
+    bot = CryptoScalpingBot(TOKEN, ANTHROPIC_API_KEY, db_instance, payment_handler_instance)
+
+    # Bot starten
+    bot.run()
+
