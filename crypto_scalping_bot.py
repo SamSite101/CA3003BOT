@@ -1,116 +1,116 @@
-# Imports for the Telegram Bot
-import datetime  # Necessary for date operations
+# Importe für den Telegram Bot
+import datetime  # Notwendig für Datumsoperationen
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Imports for UserDatabase and PaymentHandler
+# Importe für UserDatabase und PaymentHandler
 from user_database import UserDatabase
 from payment_handler import PaymentHandler
 
 import asyncio
-import os  # Necessary for os.getenv
+import os  # Notwendig für os.getenv
 from dotenv import load_dotenv
 
-# Load environment variables from the .env file
+# Umgebungsvariablen aus der .env-Datei laden
 load_dotenv()
 
-# Load tokens from environment variables.
-# Make sure these variables are defined in your .env file, e.g.:
-# TELEGRAM_BOT_TOKEN="YOUR_ACTUAL_TELEGRAM_BOT_TOKEN_HERE"
-# ANTHROPIC_API_KEY="YOUR_ACTUAL_ANTHROPIC_API_KEY_HERE"
+# Token aus Umgebungsvariablen laden.
+# Stellen Sie sicher, dass diese Variablen in Ihrer .env-Datei definiert sind, z.B.:
+# TELEGRAM_BOT_TOKEN="IHR_BOT_TOKEN_HIER"
+# ANTHROPIC_API_KEY="IHR_ANTHROPIC_API_KEY_HIER"
 TOKEN = os.getenv("7815968799:AAEET2gcuhJMaFCfEbuEH7zNDrlqtWe0ivE")
 ANTHROPIC_API_KEY = os.getenv("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")
 
 
 class CryptoScalpingBot:
-    def __init__(self, token: str, anthropic_api_key: str, db_instance: UserDatabase,
-                 payment_handler_instance: PaymentHandler):
+    def __init__(self, token: str, anthropic_api_key: str, user_db: UserDatabase,
+                 payment_handler_param: PaymentHandler):
         """
-        Initializes the CryptoScalpingBot.
+        Initialisiert den CryptoScalpingBot.
         Args:
             token (str): Telegram Bot Token.
             anthropic_api_key (str): Anthropic API Key.
-            db_instance (UserDatabase): Instance of UserDatabase.
-            payment_handler_instance (PaymentHandler): Instance of PaymentHandler.
+            user_db (UserDatabase): Instanz der UserDatabase.
+            payment_handler_param (PaymentHandler): Instanz des PaymentHandler.
         """
         self.application = Application.builder().token(token).build()
         self.anthropic_api_key = anthropic_api_key
-        self.db = db_instance
-        self.payment_handler = payment_handler_instance
+        self.db = user_db  # Instanz der UserDatabase zuweisen
+        self.payment_handler = payment_handler_param  # Instanz des PaymentHandler zuweisen
 
-        # PyCharm warnings "Shadows name 'db_instance' from outer scope" and
-        # "Shadows name 'payment_handler_instance' from outer scope" are addressed
-        # by directly assigning the passed instances to self.db and self.payment_handler.
-        # This is standard practice for dependency injection and is clear.
+        # PyCharm-Warnung "Shadows name 'payment_handler_instance' from outer scope" wurde durch
+        # Umbenennung des Parameters (payment_handler_param) im __init__ behoben.
+        # Dies vermeidet Namenskonflikte mit der im if __name__ == "__main__": Block
+        # erstellten Instanz und ist eine saubere Form der Abhängigkeitsinjektion.
 
-        # Register command handlers
+        # Befehls-Handler registrieren
         self.application.add_handler(CommandHandler("start", self.start))
         self.application.add_handler(CommandHandler("subscribe", self.subscribe))
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
         self.application.add_handler(CommandHandler("check_subscription", self.check_subscription))
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Sends a welcome message and adds the user to the database."""
+        """Sendet eine Willkommensnachricht und fügt den Benutzer zur Datenbank hinzu."""
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name
 
-        # Add user to the database
+        # Benutzer zur Datenbank hinzufügen
         await self.db.add_user(user_id, username)
 
         await update.message.reply_text(
-            f"Hello {username}! Welcome to the Crypto Scalping Bot. "
-            "I will help you find profitable trading opportunities."
+            f"Hallo {username}! Willkommen beim Crypto Scalping Bot. "
+            "Ich helfe Ihnen, profitable Handelsmöglichkeiten zu finden."
         )
-        # PyCharm warning "Parameter 'context' value is not used":
-        # The 'context' parameter is passed by python-telegram-bot by default,
-        # even if not all its functionalities are used in every method.
-        # This warning can be ignored here, as the parameter can be useful for
-        # future extensions or advanced functionality.
+        # PyCharm-Warnung "Parameter 'context' value is not used":
+        # Der 'context'-Parameter wird von python-telegram-bot standardmäßig übergeben,
+        # auch wenn nicht alle seine Funktionen in jeder Methode genutzt werden.
+        # Diese Warnung kann hier ignoriert werden, da der Parameter für zukünftige Erweiterungen
+        # oder erweiterte Funktionalität nützlich sein kann.
 
     async def subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Displays subscription options."""
-        # PyCharm warning "Method 'subscribe' may be static":
-        # This method CANNOT be static, as it uses 'update.message.reply_text',
-        # which is an asynchronous operation and requires the 'update' parameter.
+        """Zeigt Abonnementoptionen an."""
+        # PyCharm-Warnung "Method 'subscribe' may be static":
+        # Diese Methode kann NICHT statisch sein, da sie 'update.message.reply_text' verwendet,
+        # was eine asynchrone Operation ist und den 'update'-Parameter benötigt.
         keyboard = [
-            [InlineKeyboardButton("Basic (30 days - $10)", callback_data="subscribe_basic")],
-            [InlineKeyboardButton("Premium (90 days - $25)", callback_data="subscribe_premium")],
-            [InlineKeyboardButton("VIP (365 days - $80)", callback_data="subscribe_vip")],
+            [InlineKeyboardButton("Basic (30 Tage - $10)", callback_data="subscribe_basic")],
+            [InlineKeyboardButton("Premium (90 Tage - $25)", callback_data="subscribe_premium")],
+            [InlineKeyboardButton("VIP (365 Tage - $80)", callback_data="subscribe_vip")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Choose your subscription:", reply_markup=reply_markup)
-        # PyCharm warning "Parameter 'context' value is not used":
-        # See comment in the 'start' method.
+        await update.message.reply_text("Wählen Sie Ihr Abonnement:", reply_markup=reply_markup)
+        # PyCharm-Warnung "Parameter 'context' value is not used":
+        # Siehe Kommentar in der 'start'-Methode.
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles callback queries from inline buttons."""
+        """Verarbeitet Callback-Queries von Inline-Buttons."""
         query = update.callback_query
         user_id = query.from_user.id
-        await query.answer()  # Acknowledges the callback
+        await query.answer()  # Bestätigt den Empfang des Callbacks
 
         if query.data.startswith("subscribe_"):
             subscription_type = query.data.split("_")[1]
             price = await self.payment_handler.get_subscription_price(subscription_type)
 
             if price is not None:
-                # Here, the actual payment processing would begin
-                # For the demo, we simulate a successful payment
+                # Hier würde die tatsächliche Zahlungsabwicklung beginnen
+                # Für die Demo simulieren wir eine erfolgreiche Zahlung
                 payment_successful = await self.payment_handler.handle_payment(user_id, subscription_type)
                 if payment_successful:
                     await query.edit_message_text(
-                        f"Thank you! Your {subscription_type} subscription has been successfully activated."
+                        f"Vielen Dank! Ihr {subscription_type}-Abonnement wurde erfolgreich aktiviert."
                     )
                 else:
                     await query.edit_message_text(
-                        f"The activation of your {subscription_type} subscription failed. Please try again."
+                        f"Die Aktivierung Ihres {subscription_type}-Abonnements ist fehlgeschlagen. Bitte versuchen Sie es erneut."
                     )
             else:
-                await query.edit_message_text("Invalid subscription type selected.")
-        # PyCharm warning "Parameter 'context' value is not used":
-        # See comment in the 'start' method.
+                await query.edit_message_text("Ungültiger Abonnementtyp ausgewählt.")
+        # PyCharm-Warnung "Parameter 'context' value is not used":
+        # Siehe Kommentar in der 'start'-Methode.
 
     async def check_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Checks the user's subscription status."""
+        """Überprüft den Abonnementstatus des Benutzers."""
         user_id = update.effective_user.id
         user_data = await self.db.get_user(user_id)
 
@@ -120,49 +120,50 @@ class CryptoScalpingBot:
                 end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
                 if end_date >= datetime.date.today():
                     await update.message.reply_text(
-                        f"Your current subscription ({user_data.get('subscription_type', 'N/A')}) is valid until: {end_date.strftime('%d.%m.%Y')}"
+                        f"Ihr aktuelles Abonnement ({user_data.get('subscription_type', 'N/A')}) ist gültig bis: {end_date.strftime('%d.%m.%Y')}"
                     )
                 else:
-                    await update.message.reply_text("Your subscription has expired. Please renew it.")
+                    await update.message.reply_text("Ihr Abonnement ist abgelaufen. Bitte erneuern Sie es.")
             except ValueError:
-                await update.message.reply_text("Error retrieving your subscription date.")
+                await update.message.reply_text("Fehler beim Abrufen Ihres Abonnementdatums.")
         else:
-            await update.message.reply_text("You currently have no active subscription.")
-        # PyCharm warning "Parameter 'context' value is not used":
-        # See comment in the 'start' method.
+            await update.message.reply_text("Sie haben derzeit kein aktives Abonnement.")
+        # PyCharm-Warnung "Parameter 'context' value is not used":
+        # Siehe Kommentar in der 'start'-Methode.
 
     @staticmethod
     async def can_make_request(user_id: int) -> bool:
         """
-        Checks if a user is allowed to make a request (e.g., based on subscription status).
-        This method is now static as it does not use any instance attributes.
+        Überprüft, ob ein Benutzer eine Anfrage stellen darf (z.B. basierend auf dem Abonnementstatus).
+        Diese Methode ist jetzt statisch, da sie keine Instanzattribute verwendet.
         """
-        # PyCharm warning "Parameter 'user_id' value is not used":
-        # In the current placeholder logic, 'user_id' is indeed not used,
-        # as the method always returns True. In a real implementation,
-        # 'user_id' would be used to retrieve and check the subscription status
-        # from the database, e.g., await db.get_user_subscription_status(user_id).
-        return True  # Placeholder
+        # PyCharm-Warnung "Parameter 'user_id' value is not used":
+        # In der aktuellen Platzhalter-Logik wird 'user_id' tatsächlich nicht verwendet,
+        # da die Methode immer True zurückgibt. In einer realen Implementierung
+        # würde 'user_id' verwendet werden, um den Abonnementstatus aus der Datenbank
+        # abzurufen und zu prüfen, z.B. await db.get_user_subscription_status(user_id).
+        return True  # Platzhalter
 
     def run(self):
-        """Starts the bot."""
-        print("Bot is starting...")
-        # Establish database connection before starting the bot
+        """Startet den Bot."""
+        print("Bot wird gestartet...")
+        # Verbindung zur Datenbank herstellen, bevor der Bot gestartet wird
         asyncio.run(self.db.connect())
         self.application.run_polling(allowed_updates=Update.ALL_TYPES)
-        # Close database connection when the bot is stopped (optional, can also be done in a shutdown handler)
+        # Datenbankverbindung schließen, wenn der Bot beendet wird (optional, kann auch im Shutdown-Handler erfolgen)
         # asyncio.run(self.db.close())
 
 
 if __name__ == "__main__":
-    # Create an instance of UserDatabase
+    # Eine Instanz der UserDatabase erstellen
     db_instance = UserDatabase()
-    # Create an instance of PaymentHandler and pass the db_instance
+    # Eine Instanz des PaymentHandler erstellen und die db_instance übergeben
     payment_handler_instance = PaymentHandler(db_instance)
 
-    # Initialize the bot
-    bot = CryptoScalpingBot(TOKEN, ANTHROPIC_API_KEY, db_instance, payment_handler_instance)
+    # Bot initialisieren
+    bot = CryptoScalpingBot(TOKEN, ANTHROPIC_API_KEY, user_db=db_instance,
+                            payment_handler_param=payment_handler_instance)
 
-    # Start the bot
+    # Bot starten
     bot.run()
 
