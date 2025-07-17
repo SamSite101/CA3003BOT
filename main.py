@@ -5,28 +5,35 @@ Main entry point for the application.
 """
 
 import os
-import asyncio
+# asyncio wird hier NICHT mehr direkt für asyncio.run() benötigt
 from dotenv import load_dotenv
 
 from user_database import UserDatabase
 from payment_handler import PaymentHandler
 from crypto_scalping_bot import CryptoScalpingBot
 
+# Lade Umgebungsvariablen so früh wie möglich
+load_dotenv()
 
+
+# Die main-Funktion ist jetzt wieder SYNCHRON, da bot.run() (welches run_polling aufruft) den asyncio-Loop verwaltet
 def main():
     """Main function to initialize and start the bot."""
-    # Load environment variables
-    load_dotenv()
-
     # Get tokens from environment
+    # Umgebungsvariablen robuster laden und Leerzeichen entfernen
     telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+    if telegram_token:
+        telegram_token = telegram_token.strip()
 
-    if not telegram_token or not anthropic_api_key:
-        print("ERROR: Missing required environment variables!")
-        print("Please check your .env file for:")
-        print("- TELEGRAM_BOT_TOKEN")
-        print("- ANTHROPIC_API_KEY")
+    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_api_key:
+        anthropic_api_key = anthropic_api_key.strip()
+
+    if not telegram_token:
+        print("ERROR: TELEGRAM_BOT_TOKEN is missing or empty! Please check your .env file.")
+        return
+    if not anthropic_api_key:
+        print("ERROR: ANTHROPIC_API_KEY is missing or empty! Please check your .env file.")
         return
 
     # Initialize database and payment handler
@@ -42,8 +49,11 @@ def main():
     )
 
     print("Starting CA3003BOT...")
-    bot.run()
+
+    # Die Datenbankverbindung wird jetzt über die post_init/post_shutdown Callbacks des Bots verwaltet.
+    bot.run() # Diese Methode blockiert, bis der Bot gestoppt wird
 
 
 if __name__ == "__main__":
+    # asyncio.run() wird hier NICHT mehr verwendet, da bot.run() den Loop selbst verwaltet.
     main()

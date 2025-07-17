@@ -13,41 +13,80 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from user_database import UserDatabase
 from payment_handler import PaymentHandler
 
-# Load environment variables
+# Lade Umgebungsvariablen
 load_dotenv()
 
 
 class CryptoScalpingBot:
-    """Main Telegram bot class for crypto scalping functionality."""
+    """Hauptklasse des Telegram-Bots für Krypto-Scalping-Funktionalität."""
 
     def __init__(self, token: str, anthropic_api_key: str, user_db: UserDatabase,
                  payment_handler_param: PaymentHandler):
         """
-        Initialize the CryptoScalpingBot.
+        Initialisiert den CryptoScalpingBot.
 
         Args:
             token (str): Telegram Bot Token
             anthropic_api_key (str): Anthropic API Key
-            user_db (UserDatabase): UserDatabase instance
-            payment_handler_param (PaymentHandler): PaymentHandler instance
+            user_db (UserDatabase): Instanz der UserDatabase
+            payment_handler_param (PaymentHandler): Instanz des PaymentHandler
         """
-        self.application = Application.builder().token(token).build()
-        self.anthropic_api_key = anthropic_api_key
         self.db = user_db
         self.payment_handler = payment_handler_param
+        self.application = None # Standardmäßig auf None setzen
 
-        # Register command handlers
+        try:
+            self.application = Application.builder().token(token).build()
+        except Exception as e:
+            print(f"ERROR: Ausnahme beim Bauen der Telegram Application: {e}")
+            print(f"Bitte überprüfen Sie Ihren TELEGRAM_BOT_TOKEN in der .env-Datei. "
+                  f"Der verwendete Token war: '{token}'")
+            raise ValueError("Telegram Bot Application konnte nicht gebaut werden aufgrund eines Fehlers.") from e
+
+        # WICHTIG: Explizite Prüfung, ob self.application None ist
+        if self.application is None:
+            print(f"ERROR: Telegram Application konnte nicht initialisiert werden. "
+                  f"Der Token '{token}' könnte ungültig oder fehlerhaft sein. "
+                  f"Bitte überprüfen Sie Ihren TELEGRAM_BOT_TOKEN in der .env-Datei.")
+            raise ValueError("Telegram Bot Application konnte nicht gebaut werden.")
+
+
+        # WICHTIG: Korrekte Zuweisung von post_init und post_shutdown als Attribute
+        # Dies behebt den TypeError: 'NoneType' object is not callable
+        self.application.post_init = self._post_init
+        self.application.post_shutdown = self._post_shutdown
+
+        # Handler registrieren
         self._register_handlers()
 
+    async def _post_init(self, application: Application) -> None:
+        """
+        Callback-Funktion, die ausgeführt wird, nachdem der Bot initialisiert wurde.
+        Ideal für asynchrone Setup-Aufgaben wie Datenbankverbindungen.
+        """
+        print("Bot: Post-Initialisierungsaufgaben werden ausgeführt (Verbindung zur DB)...")
+        await self.db.connect()
+        print("Bot: Datenbank verbunden.")
+
+    async def _post_shutdown(self, application: Application) -> None:
+        """
+        Callback-Funktion, die ausgeführt wird, bevor der Bot heruntergefahren wird.
+        Ideal für asynchrone Bereinigungsaufgaben wie das Schließen von Datenbankverbindungen.
+        """
+        print("Bot: Post-Shutdown-Aufgaben werden ausgeführt (Schließen der DB-Verbindung)...")
+        await self.db.close()
+        print("Bot: Datenbankverbindung geschlossen.")
+
+
     def _register_handlers(self):
-        """Register all command and callback handlers."""
+        """Registriert alle Befehls- und Callback-Handler."""
         self.application.add_handler(CommandHandler("start", self.start))
         self.application.add_handler(CommandHandler("subscribe", self.subscribe))
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
         self.application.add_handler(CommandHandler("check_subscription", self.check_subscription))
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Send welcome message and add user to database."""
+        """Sendet Willkommensnachricht und fügt Benutzer zur Datenbank hinzu."""
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name
 
@@ -59,7 +98,7 @@ class CryptoScalpingBot:
         )
 
     async def subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Display subscription options."""
+        """Zeigt Abonnementoptionen an."""
         keyboard = [
             [InlineKeyboardButton("Basic (30 Tage - $10)", callback_data="subscribe_basic")],
             [InlineKeyboardButton("Premium (90 Tage - $25)", callback_data="subscribe_premium")],
@@ -69,7 +108,7 @@ class CryptoScalpingBot:
         await update.message.reply_text("Wählen Sie Ihr Abonnement:", reply_markup=reply_markup)
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle callback queries from inline buttons."""
+        """Behandelt Callback-Abfragen von Inline-Buttons."""
         query = update.callback_query
         user_id = query.from_user.id
         await query.answer()
@@ -92,7 +131,7 @@ class CryptoScalpingBot:
                 await query.edit_message_text("Ungültiger Abonnementtyp ausgewählt.")
 
     async def check_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Check user subscription status."""
+        """Überprüft den Abonnementstatus des Benutzers."""
         user_id = update.effective_user.id
         user_data = await self.db.get_user(user_id)
 
@@ -108,42 +147,44 @@ class CryptoScalpingBot:
 
     @staticmethod
     async def can_make_request(user_id: int) -> bool:
-        """Check if user can make requests based on subscription status."""
-        # Placeholder - implement actual subscription check
+        """Überprüft, ob der Benutzer Anfragen basierend auf dem Abonnementstatus stellen kann."""
+        # Platzhalter - tatsächliche Abonnementprüfung implementieren
         return True
 
-    async def run(self):
-        """Start the bot."""
-        print("Bot wird gestartet...")
-        await self.db.connect()
-
-        try:
-            await self.application.run_polling(allowed_updates=Update.ALL_TYPES)
-        finally:
-            await self.db.close()
+    # Diese Methode ist SYNCHRON, da run_polling selbst den Loop verwaltet
+    def run(self):
+        """Startet das Polling des Bots. Diese Methode ist blockierend."""
+        print("Bot polling wird gestartet...")
+        self.application.run_polling(
+            allowed_updates=Update.ALL_TYPES
+        )
 
 
-# Only run if called directly (not imported)
+# Nur ausführen, wenn direkt aufgerufen (nicht importiert)
 if __name__ == "__main__":
-    print("Warning: Running bot directly from crypto_scalping_bot.py")
-    print("Consider using main.py instead for proper project structure.")
+    print("Warnung: Bot wird direkt aus crypto_scalping_bot.py ausgeführt.")
+    print("Ziehen Sie stattdessen main.py für eine ordnungsgemäße Projektstruktur in Betracht.")
 
-    # Get environment variables
+    # Umgebungsvariablen abrufen
     TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+    # Fügen Sie auch Binance-Schlüssel hinzu, falls sie hier benötigt werden
+    # BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+    # BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
 
     if not TOKEN or not ANTHROPIC_API_KEY:
-        print("ERROR: Missing environment variables!")
+        print("FEHLER: Erforderliche Umgebungsvariablen fehlen!")
         exit(1)
 
-    # Initialize components
+    # Komponenten initialisieren
     db_instance = UserDatabase()
     payment_handler_instance = PaymentHandler(db_instance)
 
-    # Create and run bot
+    # Bot erstellen und ausführen
     bot = CryptoScalpingBot(
         TOKEN, ANTHROPIC_API_KEY,
         db_instance, payment_handler_instance
     )
 
-    asyncio.run(bot.run())
+    # Die synchrone run-Methode aufrufen
+    bot.run()
